@@ -1424,6 +1424,13 @@ public final class LeaderRole extends ActiveRole implements ZeebeLogAppender {
       return;
     }
 
+    if (isEntryInconsistent(lowestPosition)) {
+      appendListener.onWriteError(
+          new IllegalStateException("New entry has lower Zeebe log position than last entry."));
+      raft.transition(Role.FOLLOWER);
+      return;
+    }
+
     append(entry)
         .whenComplete(
             (indexed, error) -> {
@@ -1439,6 +1446,16 @@ public final class LeaderRole extends ActiveRole implements ZeebeLogAppender {
                 replicate(indexed, appendListener);
               }
             });
+  }
+
+  private boolean isEntryInconsistent(long newEntryPosition) {
+    final Indexed<RaftLogEntry> indexedEntry = raft.getLogReader().getCurrentEntry();
+    if (indexedEntry != null) {
+      final ZeebeEntry lastEntry = (ZeebeEntry) indexedEntry.cast().entry();
+      return newEntryPosition <= lastEntry.highestPosition();
+    }
+
+    return false;
   }
 
   private void replicate(final Indexed<ZeebeEntry> indexed, final AppendListener appendListener) {
