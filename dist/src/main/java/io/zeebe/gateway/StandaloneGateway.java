@@ -31,6 +31,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ApplicationContext;
 import org.springframework.core.env.Environment;
 
 public class StandaloneGateway {
@@ -121,6 +122,7 @@ public class StandaloneGateway {
 
     @Autowired GatewayCfg configuration;
     @Autowired Environment springEnvironment;
+    @Autowired ApplicationContext applicationContext;
 
     @Override
     public void run(final String... args) throws Exception {
