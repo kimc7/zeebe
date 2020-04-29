@@ -28,6 +28,7 @@ import io.atomix.cluster.ClusterMembershipService;
 import io.atomix.raft.RaftServer.Role;
 import io.atomix.raft.impl.RaftContext;
 import io.atomix.raft.session.RaftSessionRegistry;
+import io.atomix.raft.storage.log.RaftLogReader;
 import io.atomix.raft.storage.log.RaftLogWriter;
 import io.atomix.raft.storage.log.entry.RaftLogEntry;
 import io.atomix.raft.storage.snapshot.SnapshotStore;
@@ -54,6 +55,7 @@ public class LeaderRoleTest {
   private LeaderRole leaderRole;
   private RaftLogWriter writer;
   private RaftContext context;
+  private RaftLogReader reader;
 
   @Before
   public void setup() {
@@ -86,6 +88,9 @@ public class LeaderRoleTest {
     when(mockSessionRegistry.getSessions()).thenReturn(Collections.emptyList());
     when(context.getSessions()).thenReturn(mockSessionRegistry);
     when(context.getMembershipService()).thenReturn(mock(ClusterMembershipService.class));
+
+    reader = mock(RaftLogReader.class);
+    when(context.getLogReader()).thenReturn(reader);
   }
 
   @Test
