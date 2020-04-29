@@ -1449,8 +1449,8 @@ public final class LeaderRole extends ActiveRole implements ZeebeLogAppender {
   }
 
   private boolean isEntryInconsistent(long newEntryPosition) {
-    final Indexed<RaftLogEntry> indexedEntry = raft.getLogReader().getCurrentEntry();
-    if (indexedEntry != null) {
+    final Indexed<RaftLogEntry> indexedEntry = raft.getLogWriter().getLastEntry();
+    if (indexedEntry != null && indexedEntry.type() == ZeebeEntry.class) {
       final ZeebeEntry lastEntry = (ZeebeEntry) indexedEntry.cast().entry();
       return newEntryPosition <= lastEntry.highestPosition();
     }
