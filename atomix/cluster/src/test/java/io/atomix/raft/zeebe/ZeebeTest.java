@@ -329,7 +329,7 @@ public class ZeebeTest {
           public void onCommitError(Indexed<ZeebeEntry> indexed, Throwable error) {}
         });
 
-    latch.await(2, TimeUnit.SECONDS);
+    assertTrue(latch.await(2, TimeUnit.SECONDS));
   }
 
   private ByteBuffer getIntAsBytes(final int value) {

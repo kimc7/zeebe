@@ -118,6 +118,7 @@ public class ZeebeLogAppenderTest {
     assertEquals(4, (first.entry().lowestPosition()));
     assertEquals(5, (first.entry().highestPosition()));
     assertNotNull(error);
+    assertEquals(IllegalStateException.class, error.getClass());
   }
 
   private void append() {
