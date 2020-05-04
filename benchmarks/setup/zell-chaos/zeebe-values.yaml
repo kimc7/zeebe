@@ -1,6 +1,6 @@
 image:
-  repository: camunda/zeebe
-  tag: SNAPSHOT
+  repository: gcr.io/zeebe-io/zeebe
+  tag: zell-chaos
   pullPolicy: Always
 
 # ZEEBE CFG
@@ -10,7 +10,7 @@ replicationFactor: 3
 cpuThreadCount: 4
 ioThreadCount: 4
 gatewayMetrics: true
-gateway.replicas: 0
+#gateway.replicas: 0
 
 zeebeCfg: |
   # custom TOML configuration
@@ -38,8 +38,8 @@ env:
     value: Stackdriver
   - name: ZEEBE_BROKER_EXECUTION_METRICS_EXPORTER_ENABLED
     value: "true"
-  - name: ZEEBE_BROKER_GATEWAY_ENABLE
-    value: "true"		
+    # - name: ZEEBE_BROKER_GATEWAY_ENABLE
+    #value: "true"		
   - name: ZEEBE_BROKER_DATA_SNAPSHOTPERIOD		
     value: "1m"
 
