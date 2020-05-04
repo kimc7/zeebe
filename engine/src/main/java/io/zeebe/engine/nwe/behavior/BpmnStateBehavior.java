@@ -234,4 +234,9 @@ public final class BpmnStateBehavior {
   public void deleteTrigger(final long eventScopeKey, final long eventKey) {
     eventScopeInstanceState.deleteTrigger(eventScopeKey, eventKey);
   }
+
+  public BpmnElementContext getFlowScopeContext(final BpmnElementContext context) {
+    final var flowScope = getFlowScopeInstance(context);
+    return context.copy(flowScope.getKey(), flowScope.getValue(), flowScope.getState());
+  }
 }

@@ -8,8 +8,8 @@
 package io.zeebe.engine.nwe.container;
 
 import io.zeebe.el.Expression;
+import io.zeebe.engine.nwe.BpmnElementContainerProcessor;
 import io.zeebe.engine.nwe.BpmnElementContext;
-import io.zeebe.engine.nwe.BpmnElementProcessor;
 import io.zeebe.engine.nwe.behavior.BpmnBehaviors;
 import io.zeebe.engine.nwe.behavior.BpmnStateBehavior;
 import io.zeebe.engine.nwe.behavior.BpmnStateTransitionBehavior;
@@ -18,6 +18,7 @@ import io.zeebe.engine.processor.workflow.ExpressionProcessor;
 import io.zeebe.engine.processor.workflow.deployment.model.element.ExecutableMultiInstanceBody;
 import io.zeebe.engine.state.instance.VariablesState;
 import io.zeebe.msgpack.spec.MsgPackHelper;
+import io.zeebe.msgpack.spec.MsgPackReader;
 import io.zeebe.msgpack.spec.MsgPackWriter;
 import io.zeebe.util.buffer.BufferUtil;
 import java.util.List;
@@ -28,7 +29,7 @@ import org.agrona.MutableDirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
 
 public final class MultiInstanceBodyProcessor
-    implements BpmnElementProcessor<ExecutableMultiInstanceBody> {
+    implements BpmnElementContainerProcessor<ExecutableMultiInstanceBody> {
 
   private static final DirectBuffer NIL_VALUE = new UnsafeBuffer(MsgPackHelper.NIL);
   private static final DirectBuffer LOOP_COUNTER_VARIABLE = BufferUtil.wrapString("loopCounter");
@@ -37,8 +38,10 @@ public final class MultiInstanceBodyProcessor
       new UnsafeBuffer(new byte[Long.BYTES + 1]);
   private final DirectBuffer loopCounterVariableView = new UnsafeBuffer(0, 0);
 
+  private final MsgPackReader variableReader = new MsgPackReader();
   private final MsgPackWriter variableWriter = new MsgPackWriter();
   private final ExpandableArrayBuffer variableBuffer = new ExpandableArrayBuffer();
+  private final DirectBuffer resultBuffer = new UnsafeBuffer(0, 0);
 
   private final ExpressionProcessor expressionBehavior;
   private final BpmnStateTransitionBehavior stateTransitionBehavior;
@@ -122,7 +125,13 @@ public final class MultiInstanceBodyProcessor
 
   @Override
   public void onCompleted(
-      final ExecutableMultiInstanceBody element, final BpmnElementContext context) {}
+      final ExecutableMultiInstanceBody element, final BpmnElementContext context) {
+
+    stateTransitionBehavior.takeOutgoingSequenceFlows(element, context);
+
+    stateBehavior.consumeToken(context);
+    stateBehavior.removeInstance(context);
+  }
 
   @Override
   public void onTerminating(
@@ -213,5 +222,97 @@ public final class MultiInstanceBodyProcessor
     final var length = variableWriter.getOffset();
 
     stateBehavior.setLocalVariable(context, variableName, variableBuffer, 0, length);
+  }
+
+  @Override
+  public void onChildCompleted(
+      final ExecutableMultiInstanceBody element,
+      final BpmnElementContext flowScopeContext,
+      final BpmnElementContext childContext) {
+    final var loopCharacteristics = element.getLoopCharacteristics();
+
+    if (loopCharacteristics.isSequential()) {
+
+      final var inputCollectionVariable = readInputCollectionVariable(element, childContext);
+      if (inputCollectionVariable.isEmpty()) {
+        return;
+      }
+
+      final var array = inputCollectionVariable.get();
+      final var loopCounter =
+          stateBehavior.getFlowScopeInstance(childContext).getMultiInstanceLoopCounter();
+      if (loopCounter < array.size()) {
+
+        final var item = array.get(loopCounter);
+        createInnerInstance(element, flowScopeContext, item);
+      }
+    }
+
+    final Optional<Boolean> updatedSuccessfully =
+        loopCharacteristics
+            .getOutputCollection()
+            .map(variableName -> updateOutputCollection(element, childContext, variableName));
+
+    if (updatedSuccessfully.isPresent() && !updatedSuccessfully.get()) {
+      // An incident was raised while updating the output collection, stop handling activity
+      return;
+    }
+
+    if (stateBehavior.isLastActiveExecutionPathInScope(childContext)) {
+      stateTransitionBehavior.transitionToCompleting(flowScopeContext);
+    }
+  }
+
+  private boolean updateOutputCollection(
+      final ExecutableMultiInstanceBody element,
+      final BpmnElementContext childContext,
+      final DirectBuffer variableName) {
+
+    final var bodyInstanceKey = childContext.getFlowScopeKey();
+    final var loopCounter =
+        stateBehavior.getElementInstance(childContext).getMultiInstanceLoopCounter();
+
+    final Optional<DirectBuffer> elementVariable = readOutputElementVariable(element, childContext);
+    if (elementVariable.isEmpty()) {
+      return false;
+    }
+
+    // we need to read the output element variable before the current collection is read,
+    // because readOutputElementVariable(Context) uses the same buffer as getVariableLocal
+    // this could also be avoided by cloning the current collection, but that is slower.
+    final var currentCollection = variablesState.getVariableLocal(bodyInstanceKey, variableName);
+    final var updatedCollection = insertAt(currentCollection, loopCounter, elementVariable.get());
+    variablesState.setVariableLocal(
+        bodyInstanceKey, childContext.getWorkflowKey(), variableName, updatedCollection);
+
+    return true;
+  }
+
+  private Optional<DirectBuffer> readOutputElementVariable(
+      final ExecutableMultiInstanceBody element, final BpmnElementContext context) {
+    final var expression = element.getLoopCharacteristics().getOutputElement().orElseThrow();
+    return expressionBehavior.evaluateAnyExpression(expression, context.toStepContext());
+  }
+
+  private DirectBuffer insertAt(
+      final DirectBuffer array, final int index, final DirectBuffer element) {
+
+    variableReader.wrap(array, 0, array.capacity());
+    variableReader.readArrayHeader();
+    variableReader.skipValues(index - 1);
+
+    final var offsetBefore = variableReader.getOffset();
+    variableReader.skipValue();
+    final var offsetAfter = variableReader.getOffset();
+
+    variableWriter.wrap(variableBuffer, 0);
+    variableWriter.writeRaw(array, 0, offsetBefore);
+    variableWriter.writeRaw(element);
+    variableWriter.writeRaw(array, offsetAfter, array.capacity() - offsetAfter);
+
+    final var length = variableWriter.getOffset();
+
+    resultBuffer.wrap(variableBuffer, 0, length);
+    return resultBuffer;
   }
 }

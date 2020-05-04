@@ -16,6 +16,8 @@ import io.zeebe.engine.nwe.behavior.BpmnStateTransitionBehavior;
 import io.zeebe.engine.nwe.behavior.DeferredRecordsBehavior;
 import io.zeebe.engine.nwe.behavior.TypesStreamWriterProxy;
 import io.zeebe.engine.nwe.container.MultiInstanceBodyProcessor;
+import io.zeebe.engine.nwe.container.ProcessProcessor;
+import io.zeebe.engine.nwe.container.SubProcessProcessor;
 import io.zeebe.engine.nwe.gateway.ExclusiveGatewayProcessor;
 import io.zeebe.engine.nwe.task.ServiceTaskProcessor;
 import io.zeebe.engine.processor.SideEffectProducer;
@@ -70,7 +72,10 @@ public final class BpmnStreamProcessor implements TypedRecordProcessor<WorkflowI
             new BpmnIncidentBehavior(zeebeState, streamWriterProxy),
             stateBehavior,
             new BpmnStateTransitionBehavior(
-                streamWriterProxy, zeebeState.getKeyGenerator(), stateBehavior),
+                streamWriterProxy,
+                zeebeState.getKeyGenerator(),
+                stateBehavior,
+                this::getContainerProcessor),
             streamWriterProxy,
             new DeferredRecordsBehavior(zeebeState, streamWriterProxy));
 
@@ -81,13 +86,22 @@ public final class BpmnStreamProcessor implements TypedRecordProcessor<WorkflowI
             BpmnElementType.EXCLUSIVE_GATEWAY,
             new ExclusiveGatewayProcessor(bpmnBehaviors),
             BpmnElementType.MULTI_INSTANCE_BODY,
-            new MultiInstanceBodyProcessor(bpmnBehaviors));
+            new MultiInstanceBodyProcessor(bpmnBehaviors),
+            BpmnElementType.SUB_PROCESS,
+            new SubProcessProcessor(bpmnBehaviors),
+            BpmnElementType.PROCESS,
+            new ProcessProcessor(bpmnBehaviors));
 
     context = new BpmnElementContextImpl(zeebeState);
   }
 
   private <T extends ExecutableFlowElement> BpmnElementProcessor<T> getProcessor(
       final BpmnElementType bpmnElementType) {
+    if (bpmnElementType == BpmnElementType.SUB_PROCESS
+        || bpmnElementType == BpmnElementType.PROCESS) {
+      return null;
+    }
+
     final var processor = (BpmnElementProcessor<T>) processors.get(bpmnElementType);
     if (processor == null) {
       LOGGER.info("[NEW] No processor found for BPMN element type '{}'", bpmnElementType);
@@ -95,6 +109,20 @@ public final class BpmnStreamProcessor implements TypedRecordProcessor<WorkflowI
       //          String.format("no processor found for BPMN element type '%s'", bpmnElementType));
     }
     return processor;
+  }
+
+  private <T extends ExecutableFlowElement> BpmnElementContainerProcessor<T> getContainerProcessor(
+      final BpmnElementType bpmnElementType) {
+    switch (bpmnElementType) {
+      case PROCESS:
+      case SUB_PROCESS:
+      case MULTI_INSTANCE_BODY:
+        return (BpmnElementContainerProcessor<T>) processors.get(bpmnElementType);
+      default:
+        throw new UnsupportedOperationException(
+            String.format(
+                "no container processor found for BPMN element type '%s'", bpmnElementType));
+    }
   }
 
   @Override

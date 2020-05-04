@@ -96,11 +96,7 @@ public class ExclusiveGatewayProcessor implements BpmnElementProcessor<Executabl
       final ExecutableExclusiveGateway element, final BpmnElementContext context) {
     deferredRecordsBehavior.publishDeferredRecords(context);
 
-    if (stateBehavior.isLastActiveExecutionPathInScope(context)) {
-      // the gateway is an implicit end for the flow scope
-      stateBehavior.completeFlowScope(context);
-    }
-
+    stateTransitionBehavior.onCompleted(element, context);
     stateBehavior.consumeToken(context);
   }
 

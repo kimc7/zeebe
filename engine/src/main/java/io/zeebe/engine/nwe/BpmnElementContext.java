@@ -35,4 +35,7 @@ public interface BpmnElementContext {
   WorkflowInstanceRecord getRecordValue();
 
   WorkflowInstanceIntent getIntent();
+
+  BpmnElementContext copy(
+      long elementInstanceKey, WorkflowInstanceRecord recordValue, WorkflowInstanceIntent intent);
 }

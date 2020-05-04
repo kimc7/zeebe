@@ -164,25 +164,7 @@ public final class ServiceTaskProcessor implements BpmnElementProcessor<Executab
     // remove from event scope instance state
     // remove from element instance state
 
-    final var outgoingSequenceFlows = element.getOutgoing();
-    if (outgoingSequenceFlows.isEmpty()) {
-
-      if (stateBehavior.isLastActiveExecutionPathInScope(context)) {
-        stateBehavior.completeFlowScope(context);
-
-        // TODO (saig0): update state because of the step guards
-        stateBehavior.updateFlowScopeInstance(
-            context,
-            elementInstance -> elementInstance.setState(WorkflowInstanceIntent.ELEMENT_COMPLETING));
-      }
-
-    } else {
-      outgoingSequenceFlows.forEach(
-          sequenceFlow -> {
-            stateTransitionBehavior.takeSequenceFlow(context, sequenceFlow);
-            stateBehavior.spawnToken(context);
-          });
-    }
+    stateTransitionBehavior.takeOutgoingSequenceFlows(element, context);
 
     stateBehavior.consumeToken(context);
     stateBehavior.removeInstance(context);

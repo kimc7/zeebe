@@ -30,11 +30,21 @@ public final class BpmnElementContextImpl implements BpmnElementContext {
   private final BpmnStepContext<?> stepContext;
 
   public BpmnElementContextImpl(final ZeebeState zeebeState) {
+    this(createStepContext(zeebeState));
+  }
+
+  private BpmnElementContextImpl(final BpmnStepContext<?> stepContext) {
+    this.stepContext = stepContext;
+  }
+
+  private static BpmnStepContext<?> createStepContext(final ZeebeState zeebeState) {
+    final BpmnStepContext<?> stepContext;
     final var eventOutput =
         new EventOutput(
             new WorkflowEngineState(1, zeebeState.getWorkflowState()),
             zeebeState.getKeyGenerator());
     stepContext = new BpmnStepContext<>(zeebeState.getWorkflowState(), eventOutput);
+    return stepContext;
   }
 
   @Override
@@ -85,6 +95,20 @@ public final class BpmnElementContextImpl implements BpmnElementContext {
   @Override
   public WorkflowInstanceIntent getIntent() {
     return intent;
+  }
+
+  @Override
+  public BpmnElementContext copy(
+      final long elementInstanceKey,
+      final WorkflowInstanceRecord recordValue,
+      final WorkflowInstanceIntent intent) {
+
+    final var copy = new BpmnElementContextImpl(stepContext);
+    copy.elementInstanceKey = elementInstanceKey;
+    copy.recordValue = recordValue;
+    copy.intent = intent;
+    // TODO (saig0): init the step context
+    return copy;
   }
 
   public void init(
