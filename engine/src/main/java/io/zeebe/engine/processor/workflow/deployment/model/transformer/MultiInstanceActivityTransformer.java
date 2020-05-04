@@ -51,6 +51,9 @@ public final class MultiInstanceActivityTransformer implements ModelElementTrans
 
       multiInstanceBody.setElementType(BpmnElementType.MULTI_INSTANCE_BODY);
 
+      multiInstanceBody.setFlowScope(innerActivity.getFlowScope());
+      innerActivity.setFlowScope(multiInstanceBody);
+
       // configure lifecycle of the body
       multiInstanceBody.bindLifecycleState(
           WorkflowInstanceIntent.ELEMENT_ACTIVATING, BpmnStep.BPMN_ELEMENT_PROCESSOR);
@@ -60,7 +63,7 @@ public final class MultiInstanceActivityTransformer implements ModelElementTrans
       multiInstanceBody.bindLifecycleState(
           WorkflowInstanceIntent.ELEMENT_COMPLETING, BpmnStep.BPMN_ELEMENT_PROCESSOR);
       multiInstanceBody.bindLifecycleState(
-          WorkflowInstanceIntent.ELEMENT_COMPLETED, BpmnStep.MULTI_INSTANCE_COMPLETED);
+          WorkflowInstanceIntent.ELEMENT_COMPLETED, BpmnStep.BPMN_ELEMENT_PROCESSOR);
 
       multiInstanceBody.bindLifecycleState(
           WorkflowInstanceIntent.ELEMENT_TERMINATING, BpmnStep.MULTI_INSTANCE_TERMINATING);

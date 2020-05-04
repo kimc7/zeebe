@@ -221,4 +221,9 @@ public final class BpmnStateBehavior {
     variablesState.setVariablesFromDocument(
         targetScope, context.getWorkflowKey(), variablesAsDocument);
   }
+
+  public BpmnElementContext getFlowScopeContext(final BpmnElementContext context) {
+    final var flowScope = getFlowScopeInstance(context);
+    return context.copy(flowScope.getKey(), flowScope.getValue(), flowScope.getState());
+  }
 }
