@@ -26,7 +26,6 @@ import io.zeebe.protocol.record.value.ErrorType;
 import io.zeebe.util.Either;
 import io.zeebe.util.buffer.BufferUtil;
 import java.util.Optional;
-import java.util.function.Consumer;
 
 public class ExclusiveGatewayProcessor implements BpmnElementProcessor<ExecutableExclusiveGateway> {
 
@@ -58,14 +57,25 @@ public class ExclusiveGatewayProcessor implements BpmnElementProcessor<Executabl
   @Override
   public void onActivating(
       final ExecutableExclusiveGateway element, final BpmnElementContext context) {
+    if (element.getOutgoing().isEmpty()) {
+      // there are no flows to take: the gateway is an implicit end for the flow scope
+      stateTransitionBehavior.transitionToActivated(context);
+      return;
+    }
+
     // find outgoing sequence flow with fulfilled condition or the default or none
     findSequenceFlowToTake(element, context)
         .ifRight(
             sequenceFlow -> {
               stateTransitionBehavior.transitionToActivated(context);
-
               // defer sequence flow taken, as it will only be taken when the gateway is completed
-              sequenceFlow.ifPresent(deferSequenceFlowTaken(context));
+              record.wrap(context.getRecordValue());
+              record.setElementId(sequenceFlow.getId());
+              record.setBpmnElementType(BpmnElementType.SEQUENCE_FLOW);
+              deferredRecordsBehavior.deferNewRecord(
+                  context.getElementInstanceKey(),
+                  record,
+                  WorkflowInstanceIntent.SEQUENCE_FLOW_TAKEN);
             });
   }
 
@@ -125,15 +135,11 @@ public class ExclusiveGatewayProcessor implements BpmnElementProcessor<Executabl
         "expected to handle occurred event on exclusive gateway, but events should not occur on exclusive gateway");
   }
 
-  private Either<Failure, Optional<ExecutableSequenceFlow>> findSequenceFlowToTake(
+  private Either<Failure, ExecutableSequenceFlow> findSequenceFlowToTake(
       final ExecutableExclusiveGateway element, final BpmnElementContext context) {
-    if (element.getOutgoing().isEmpty()) {
-      // there are no flows to take: the gateway is an implicit end for the flow scope
-      return Either.right(Optional.empty());
-    }
     if (element.getOutgoing().size() == 1 && element.getOutgoing().get(0).getCondition() == null) {
       // only one flow without a condition, can just be taken
-      return Either.right(Optional.of(element.getOutgoing().get(0)));
+      return Either.right(element.getOutgoing().get(0));
     }
     for (final ExecutableSequenceFlow sequenceFlow : element.getOutgoingWithCondition()) {
       final Expression condition = sequenceFlow.getCondition();
@@ -149,12 +155,12 @@ public class ExclusiveGatewayProcessor implements BpmnElementProcessor<Executabl
 
       } else if (isFulfilled.get()) {
         // the condition is fulfilled
-        return Either.right(Optional.of(sequenceFlow));
+        return Either.right(sequenceFlow);
       }
     }
     // no condition is fulfilled - try to take the default flow
     if (element.getDefaultFlow() != null) {
-      return Either.right(Optional.of(element.getDefaultFlow()));
+      return Either.right(element.getDefaultFlow());
     }
     incidentBehavior.createIncident(
         ErrorType.CONDITION_ERROR,
@@ -162,16 +168,5 @@ public class ExclusiveGatewayProcessor implements BpmnElementProcessor<Executabl
         context,
         context.getElementInstanceKey());
     return Either.left(new Failure(NO_OUTGOING_FLOW_CHOSEN_ERROR));
-  }
-
-  private Consumer<ExecutableSequenceFlow> deferSequenceFlowTaken(
-      final BpmnElementContext context) {
-    return sequenceFlow -> {
-      record.wrap(context.getRecordValue());
-      record.setElementId(sequenceFlow.getId());
-      record.setBpmnElementType(BpmnElementType.SEQUENCE_FLOW);
-      deferredRecordsBehavior.deferNewRecord(
-          context.getElementInstanceKey(), record, WorkflowInstanceIntent.SEQUENCE_FLOW_TAKEN);
-    };
   }
 }

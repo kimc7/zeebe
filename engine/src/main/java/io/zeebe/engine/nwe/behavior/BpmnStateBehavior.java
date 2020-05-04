@@ -188,6 +188,15 @@ public final class BpmnStateBehavior {
         WorkflowInstanceIntent.ELEMENT_ACTIVATING);
   }
 
+  public void createBoundaryInstance(
+      final BpmnElementContext context,
+      final long boundaryInstanceKey,
+      final WorkflowInstanceRecord record) {
+    final ElementInstance flowScopeInstance = getFlowScopeInstance(context);
+    elementInstanceState.newInstance(
+        flowScopeInstance, boundaryInstanceKey, record, WorkflowInstanceIntent.ELEMENT_ACTIVATING);
+  }
+
   public void setLocalVariable(
       final BpmnElementContext context,
       final DirectBuffer variableName,
@@ -220,5 +229,9 @@ public final class BpmnStateBehavior {
 
     variablesState.setVariablesFromDocument(
         targetScope, context.getWorkflowKey(), variablesAsDocument);
+  }
+
+  public void deleteTrigger(final long eventScopeKey, final long eventKey) {
+    eventScopeInstanceState.deleteTrigger(eventScopeKey, eventKey);
   }
 }

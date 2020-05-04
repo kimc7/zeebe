@@ -13,6 +13,8 @@ import io.zeebe.engine.processor.TypedStreamWriter;
 import io.zeebe.engine.processor.workflow.deployment.model.element.ExecutableFlowElement;
 import io.zeebe.engine.processor.workflow.deployment.model.element.ExecutableSequenceFlow;
 import io.zeebe.engine.state.instance.ElementInstance;
+import io.zeebe.engine.state.instance.EventTrigger;
+import io.zeebe.protocol.impl.record.value.workflowinstance.WorkflowInstanceRecord;
 import io.zeebe.protocol.record.intent.WorkflowInstanceIntent;
 
 public final class BpmnStateTransitionBehavior {
@@ -37,6 +39,14 @@ public final class BpmnStateTransitionBehavior {
     stateBehavior.updateElementInstance(
         context,
         elementInstance -> elementInstance.setState(WorkflowInstanceIntent.ELEMENT_ACTIVATED));
+  }
+
+  public void transitionToTerminating(final BpmnElementContext context) {
+    transitionTo(context, WorkflowInstanceIntent.ELEMENT_TERMINATING);
+
+    stateBehavior.updateElementInstance(
+        context,
+        elementInstance -> elementInstance.setState(WorkflowInstanceIntent.ELEMENT_TERMINATING));
   }
 
   public void transitionToTerminated(final BpmnElementContext context) {
@@ -97,5 +107,20 @@ public final class BpmnStateTransitionBehavior {
         childInstanceKey, WorkflowInstanceIntent.ELEMENT_ACTIVATING, childInstanceRecord);
 
     return stateBehavior.createChildElementInstance(context, childInstanceKey, childInstanceRecord);
+  }
+
+  public long activateBoundaryInstance(
+      final BpmnElementContext context,
+      final WorkflowInstanceRecord record,
+      final EventTrigger event) {
+
+    final var boundaryInstanceKey = keyGenerator.nextKey();
+    streamWriter.appendNewEvent(
+        boundaryInstanceKey, WorkflowInstanceIntent.ELEMENT_ACTIVATING, record);
+    stateBehavior.createBoundaryInstance(context, boundaryInstanceKey, record);
+
+    stateBehavior.spawnToken(context);
+
+    return boundaryInstanceKey;
   }
 }

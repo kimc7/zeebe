@@ -20,21 +20,27 @@ import io.zeebe.engine.processor.TypedCommandWriter;
 import io.zeebe.engine.processor.workflow.CatchEventBehavior;
 import io.zeebe.engine.processor.workflow.ExpressionProcessor;
 import io.zeebe.engine.processor.workflow.ExpressionProcessor.EvaluationException;
+import io.zeebe.engine.processor.workflow.deployment.model.element.ExecutableBoundaryEvent;
 import io.zeebe.engine.processor.workflow.deployment.model.element.ExecutableServiceTask;
 import io.zeebe.engine.processor.workflow.handlers.IOMappingHelper;
 import io.zeebe.engine.processor.workflow.message.MessageCorrelationKeyException;
+import io.zeebe.engine.state.instance.EventTrigger;
 import io.zeebe.engine.state.instance.JobState.State;
 import io.zeebe.msgpack.value.DocumentValue;
 import io.zeebe.protocol.impl.record.value.job.JobRecord;
+import io.zeebe.protocol.impl.record.value.workflowinstance.WorkflowInstanceRecord;
 import io.zeebe.protocol.record.intent.JobIntent;
 import io.zeebe.protocol.record.intent.WorkflowInstanceIntent;
+import io.zeebe.protocol.record.value.BpmnElementType;
 import io.zeebe.protocol.record.value.ErrorType;
 import io.zeebe.util.Either;
+import io.zeebe.util.buffer.BufferUtil;
 import java.util.Optional;
 
 public final class ServiceTaskProcessor implements BpmnElementProcessor<ExecutableServiceTask> {
 
   private final JobRecord jobCommand = new JobRecord().setVariables(DocumentValue.EMPTY_DOCUMENT);
+  private final WorkflowInstanceRecord eventRecord = new WorkflowInstanceRecord();
 
   private final IOMappingHelper variableMappingBehavior;
   private final CatchEventBehavior eventSubscriptionBehavior;
@@ -228,9 +234,67 @@ public final class ServiceTaskProcessor implements BpmnElementProcessor<Executab
       final ExecutableServiceTask element, final BpmnElementContext context) {
     // for all activities:
     // (when boundary event is triggered)
-    // if interrupting then terminate element and defer occurred event
-    // if non-interrupting then activate boundary event, remove event trigger from state, spawn
-    // token
+
+    final EventTrigger event =
+        context
+            .toStepContext()
+            .getStateDb()
+            .getEventScopeInstanceState()
+            .peekEventTrigger(context.getElementInstanceKey());
+
+    final ExecutableBoundaryEvent boundaryEvent = getBoundaryEvent(element, event);
+    if (boundaryEvent == null) {
+      Loggers.WORKFLOW_PROCESSOR_LOGGER.error(
+          "No boundary event found with ID {} for process {}",
+          BufferUtil.bufferAsString(event.getElementId()),
+          context.getWorkflowKey());
+      return;
+    }
+    final WorkflowInstanceRecord eventRecord =
+        fillEventRecord(context, event, boundaryEvent.getElementType());
+    final long boundaryInstanceKey;
+    if (boundaryEvent.interrupting()) {
+      // if interrupting then terminate element and defer occurred event
+      stateTransitionBehavior.transitionToTerminating(context);
+      boundaryInstanceKey =
+          deferredRecordsBehavior.deferNewRecord(
+              context.getElementInstanceKey(),
+              eventRecord,
+              WorkflowInstanceIntent.ELEMENT_ACTIVATING);
+    } else {
+      // if non-interrupting then activate boundary event and spawn token
+      boundaryInstanceKey =
+          stateTransitionBehavior.activateBoundaryInstance(context, eventRecord, event);
+    }
+
+    // move variables over to new flow
+    stateBehavior
+        .getVariablesState()
+        .setTemporaryVariables(boundaryInstanceKey, event.getVariables());
+
+    // clean-up the event trigger
+    stateBehavior.deleteTrigger(context.getElementInstanceKey(), event.getEventKey());
+  }
+
+  private ExecutableBoundaryEvent getBoundaryEvent(
+      final ExecutableServiceTask element, final EventTrigger event) {
+    for (final ExecutableBoundaryEvent boundaryEvent : element.getBoundaryEvents()) {
+      if (event.getElementId().equals(boundaryEvent.getId())) {
+        return boundaryEvent;
+      }
+    }
+    return null;
+  }
+
+  protected WorkflowInstanceRecord fillEventRecord(
+      final BpmnElementContext context,
+      final EventTrigger event,
+      final BpmnElementType elementType) {
+    eventRecord.reset();
+    eventRecord.wrap(context.getRecordValue());
+    eventRecord.setElementId(event.getElementId());
+    eventRecord.setBpmnElementType(elementType);
+    return eventRecord;
   }
 
   private void createNewJob(

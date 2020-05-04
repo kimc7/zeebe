@@ -34,10 +34,11 @@ public class DeferredRecordsBehavior {
     this.keyGenerator = zeebeState.getKeyGenerator();
   }
 
-  public void deferNewRecord(
+  public long deferNewRecord(
       final long scopeKey, final WorkflowInstanceRecord value, final WorkflowInstanceIntent state) {
     final long key = keyGenerator.nextKey();
     workflowEngineState.deferRecord(key, scopeKey, value, state);
+    return key;
   }
 
   public void publishDeferredRecords(final BpmnElementContext context) {
