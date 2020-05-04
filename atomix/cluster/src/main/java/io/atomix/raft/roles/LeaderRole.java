@@ -1457,17 +1457,22 @@ public final class LeaderRole extends ActiveRole implements ZeebeLogAppender {
 
     if (lastEntry == null || lastEntry.type() != ZeebeEntry.class) {
       long index = raft.getLogWriter().getLastIndex();
+      // if the last index doesn't exist, getLastIndex() will already return the index before
+      // the current segment
+      if (lastEntry != null) {
+        index--;
+      }
 
       do {
         raft.getLogReader().reset(index);
-        lastEntry = raft.getLogReader().getCurrentEntry();
+        lastEntry = raft.getLogReader().next();
         --index;
-      } while (lastEntry != null && lastEntry.type() != ZeebeEntry.class);
+      } while (index > 0 && lastEntry != null && lastEntry.type() != ZeebeEntry.class);
     }
 
     return lastEntry == null
-        || (lastEntry.type() == ZeebeEntry.class
-            && newEntryPosition > ((ZeebeEntry) lastEntry.entry()).highestPosition());
+        || lastEntry.type() != ZeebeEntry.class
+        || newEntryPosition > ((ZeebeEntry) lastEntry.entry()).highestPosition();
   }
 
   private void replicate(final Indexed<ZeebeEntry> indexed, final AppendListener appendListener) {

@@ -299,6 +299,7 @@ public class ZeebeTest {
     final ZeebeLogAppender oldAppender =
         oldLeader.getPartitionServer(partitionId).getAppender().orElseThrow();
     appenderWrapper.append(oldAppender, 0, 0, ByteBuffer.allocate(Integer.BYTES).putInt(0, 1));
+    appenderWrapper.pollCommitted();
 
     oldLeader.stop().join();
     final ZeebeTestNode newLeader = helper.awaitLeader(partitionId, followers);
