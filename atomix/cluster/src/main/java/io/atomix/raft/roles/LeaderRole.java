@@ -70,6 +70,7 @@ import io.atomix.raft.storage.log.entry.MetadataEntry;
 import io.atomix.raft.storage.log.entry.OpenSessionEntry;
 import io.atomix.raft.storage.log.entry.QueryEntry;
 import io.atomix.raft.storage.log.entry.RaftLogEntry;
+import io.atomix.raft.storage.snapshot.SnapshotListener;
 import io.atomix.raft.storage.system.Configuration;
 import io.atomix.raft.zeebe.ZeebeEntry;
 import io.atomix.raft.zeebe.ZeebeLogAppender;
@@ -122,6 +123,11 @@ public final class LeaderRole extends ActiveRole implements ZeebeLogAppender {
     raft.getMembershipService().addListener(clusterListener);
 
     return super.start().thenRun(this::startTimers).thenApply(v -> this);
+  }
+
+  @Override
+  protected SnapshotListener createSnapshotListener() {
+    return null;
   }
 
   @Override
