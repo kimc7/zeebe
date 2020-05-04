@@ -18,6 +18,7 @@ import io.zeebe.engine.state.instance.JobState;
 import io.zeebe.engine.state.instance.VariablesState;
 import io.zeebe.protocol.impl.record.value.workflowinstance.WorkflowInstanceRecord;
 import io.zeebe.protocol.record.intent.WorkflowInstanceIntent;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import org.agrona.DirectBuffer;
@@ -207,5 +208,17 @@ public final class BpmnStateBehavior {
         variableValue,
         valueOffset,
         valueLength);
+  }
+
+  public void propagateVariable(final BpmnElementContext context, final DirectBuffer variableName) {
+
+    final var sourceScope = context.getElementInstanceKey();
+    final var targetScope = context.getFlowScopeKey();
+
+    final var variablesAsDocument =
+        variablesState.getVariablesAsDocument(sourceScope, List.of(variableName));
+
+    variablesState.setVariablesFromDocument(
+        targetScope, context.getWorkflowKey(), variablesAsDocument);
   }
 }

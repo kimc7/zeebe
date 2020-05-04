@@ -107,7 +107,18 @@ public final class MultiInstanceBodyProcessor
 
   @Override
   public void onCompleting(
-      final ExecutableMultiInstanceBody element, final BpmnElementContext context) {}
+      final ExecutableMultiInstanceBody element, final BpmnElementContext context) {
+
+    eventSubscriptionBehavior.unsubscribeFromEvents(
+        context.getElementInstanceKey(), context.toStepContext());
+
+    element
+        .getLoopCharacteristics()
+        .getOutputCollection()
+        .ifPresent(variableName -> stateBehavior.propagateVariable(context, variableName));
+
+    stateTransitionBehavior.transitionToCompleted(context);
+  }
 
   @Override
   public void onCompleted(

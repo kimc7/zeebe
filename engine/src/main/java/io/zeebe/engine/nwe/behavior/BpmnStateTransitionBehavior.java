@@ -57,6 +57,10 @@ public final class BpmnStateTransitionBehavior {
 
   public void transitionToCompleted(final BpmnElementContext context) {
     transitionTo(context, WorkflowInstanceIntent.ELEMENT_COMPLETED);
+
+    stateBehavior.updateElementInstance(
+        context,
+        elementInstance -> elementInstance.setState(WorkflowInstanceIntent.ELEMENT_COMPLETED));
   }
 
   private void transitionTo(final BpmnElementContext context, final WorkflowInstanceIntent intent) {
