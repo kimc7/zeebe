@@ -89,11 +89,6 @@ public final class ServiceTaskProcessor implements BpmnElementProcessor<Executab
     }
 
     stateTransitionBehavior.transitionToActivated(context);
-
-    // TODO (saig0): update state because of the step guards
-    stateBehavior.updateElementInstance(
-        context,
-        elementInstance -> elementInstance.setState(WorkflowInstanceIntent.ELEMENT_ACTIVATED));
   }
 
   @Override
@@ -151,11 +146,6 @@ public final class ServiceTaskProcessor implements BpmnElementProcessor<Executab
 
     stateTransitionBehavior.transitionToCompleted(context);
 
-    // TODO (saig0): update state because of the step guards
-    stateBehavior.updateElementInstance(
-        context,
-        elementInstance -> elementInstance.setState(WorkflowInstanceIntent.ELEMENT_COMPLETED));
-
     // TODO (saig0): shutdown event scope? (sse AbstractHandler#transitionTo)
   }
 
@@ -212,10 +202,6 @@ public final class ServiceTaskProcessor implements BpmnElementProcessor<Executab
         context.getElementInstanceKey(), context.toStepContext());
 
     stateTransitionBehavior.transitionToTerminated(context);
-
-    // TODO (saig0): update state because of the step guards
-    elementInstance.setState(WorkflowInstanceIntent.ELEMENT_TERMINATED);
-    stateBehavior.updateElementInstance(elementInstance);
 
     // TODO (saig0): shutdown event scope? (sse AbstractHandler#transitionTo)
   }

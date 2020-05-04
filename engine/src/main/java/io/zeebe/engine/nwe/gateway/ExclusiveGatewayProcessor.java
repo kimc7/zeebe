@@ -63,9 +63,7 @@ public class ExclusiveGatewayProcessor implements BpmnElementProcessor<Executabl
         .ifRight(
             sequenceFlow -> {
               stateTransitionBehavior.transitionToActivated(context);
-              // TODO (saig0): update state because of the step guards
-              stateBehavior.updateElementInstance(
-                  context, instance -> instance.setState(WorkflowInstanceIntent.ELEMENT_ACTIVATED));
+
               // defer sequence flow taken, as it will only be taken when the gateway is completed
               sequenceFlow.ifPresent(deferSequenceFlowTaken(context));
             });
@@ -81,11 +79,6 @@ public class ExclusiveGatewayProcessor implements BpmnElementProcessor<Executabl
   public void onCompleting(
       final ExecutableExclusiveGateway element, final BpmnElementContext context) {
     stateTransitionBehavior.transitionToCompleted(context);
-
-    // TODO (saig0): update state because of the step guards
-    final var elementInstance = stateBehavior.getElementInstance(context);
-    elementInstance.setState(WorkflowInstanceIntent.ELEMENT_COMPLETED);
-    stateBehavior.updateElementInstance(elementInstance);
   }
 
   @Override
@@ -105,11 +98,6 @@ public class ExclusiveGatewayProcessor implements BpmnElementProcessor<Executabl
   public void onTerminating(
       final ExecutableExclusiveGateway element, final BpmnElementContext context) {
     stateTransitionBehavior.transitionToTerminated(context);
-
-    // TODO (saig0): update state because of the step guards
-    final var elementInstance = stateBehavior.getElementInstance(context);
-    elementInstance.setState(WorkflowInstanceIntent.ELEMENT_TERMINATED);
-    stateBehavior.updateElementInstance(elementInstance);
   }
 
   @Override
